@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#286b57">
+  <meta name="description" content="A simple teacher tool for accommodation check-ins and TEKS growth tracking.">
+  <title>EduTrack</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="authScreen" class="auth-screen">
+    <section class="auth-card">
+      <div class="brand"><span class="brand-icon">✳</span><span>EduTrack</span></div>
+      <h1 id="authTitle">Sign in</h1>
+      <p id="authIntro">Sign in to open your classroom on this device.</p>
+      <div id="authNotice" class="notice" role="status" hidden></div>
+      <form id="authForm">
+        <label id="nameWrap" hidden>Your name<input id="teacherName" autocomplete="name" placeholder="Name shown in EduTrack"></label>
+        <label>Email<input id="email" type="email" autocomplete="email" required placeholder="you@school.org"></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password" required placeholder="At least 8 characters"></label>
+        <button id="authSubmit" class="button primary full" type="submit">Sign in</button>
+      </form>
+      <button id="authToggle" class="link-button" type="button">Create a teacher account</button>
+      <p id="authMessage" class="message" role="status" aria-live="polite"></p>
+      <p class="privacy-note">Student names, plans, logs, and scores are saved in this browser only. Supabase is used for teacher sign-in and teacher name.</p>
+    </section>
+  </div>
+
+  <div id="appScreen" class="app-screen" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="#home" aria-label="EduTrack home"><span class="brand-icon">✳</span><span>EduTrack</span></a>
+      <div class="sidebar-label">YOUR CLASSROOM</div>
+      <nav class="nav" aria-label="Main navigation">
+        <button data-view="home" class="nav-button active"><span>⌂</span>Overview</button>
+        <button data-view="students" class="nav-button"><span>♙</span>Students</button>
+        <button data-view="reports" class="nav-button"><span>▤</span>Reports</button>
+        <button data-view="settings" class="nav-button"><span>⚙</span>Settings</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="teacher-chip"><span id="teacherAvatar" class="avatar">T</span><span><b id="teacherLabel">Teacher</b><small>Teacher account</small></span></div>
+        <button id="signOut" class="button subtle full">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar"><div><span class="muted">EduTrack</span><span class="slash">/</span><b id="crumb">Overview</b></div><div class="topbar-right"><span id="schoolLabel" class="muted">My classroom</span><span id="topAvatar" class="avatar">T</span></div></header>
+      <div id="view" class="page" tabindex="-1"></div>
+    </main>
+  </div>
+
+  <div id="modalRoot"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./supabase-config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
