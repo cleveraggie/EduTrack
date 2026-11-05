@@ -43,6 +43,7 @@ The included workflow cancels an older in-progress Pages deployment when a newer
 ## Using the app
 
 - Add a student and select their accommodations with checkboxes. The built-in list includes Hard copy notes; oral responses is not included. Add a custom accommodation when needed.
+- Add class periods in the **Classes** tab, then choose a class when adding or editing a student. Use **View students** on a class card or the class filter on the Students page to open a smaller roster.
 - Select a student and choose **Record today**. For each listed accommodation, click **Used** or **Not used** and save the date and activity type (Daily, Test, or Other).
 - Add frequently used TEKS under **Set Standards**. Mark priority standards so they stand out in growth reports. When entering test results, enter the test name, date, and overall test points earned/possible once. Then add one row for each TEKS covered by that test with its points earned/possible. CSV import is not required.
 - Use **Reports** for a TEKS growth summary, or open a student and choose **Print report** or **Download CSV**. The report is formatted to use less paper.

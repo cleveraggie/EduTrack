@@ -9,13 +9,14 @@
     'Reduced-distraction setting', 'Calculator', 'Graphic organizer', 'Word bank',
     'Check for understanding', 'Hard copy notes'
   ];
-  const blankData = () => ({ students: [], logs: [], tests: [], scores: [], teks: [] });
+  const blankData = () => ({ students: [], classes: [], logs: [], tests: [], scores: [], teks: [] });
   const $ = (id) => document.getElementById(id);
   let supabase = null;
   let session = null;
   let profile = null;
   let data = blankData();
   let viewName = 'home';
+  let studentClassFilter = '';
   let selectedStudent = null;
   let saveTimer;
 
@@ -166,16 +167,19 @@
     $('schoolLabel').textContent = profile?.school_name || 'My classroom';
   }
 
-  function showView(next) {
+  function showView(next, classId = '') {
     viewName = next; selectedStudent = null;
+    studentClassFilter = next === 'students' ? classId : '';
     document.querySelectorAll('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === next));
-    $('crumb').textContent = ({ home: 'Overview', students: 'Students', standards: 'Set Standards', reports: 'Reports', settings: 'Settings' })[next] || 'Overview';
-    const renders = { home: renderHome, students: renderStudents, standards: renderStandards, reports: renderReports, settings: renderSettings };
+    $('crumb').textContent = ({ home: 'Overview', students: 'Students', classes: 'Classes', standards: 'Set Standards', reports: 'Reports', settings: 'Settings' })[next] || 'Overview';
+    const renders = { home: renderHome, students: renderStudents, classes: renderClasses, standards: renderStandards, reports: renderReports, settings: renderSettings };
     $('view').innerHTML = (renders[next] || renderHome)(); $('view').focus({ preventScroll: true });
   }
   function studentCard(student) {
-    return `<button class="student-row" data-action="student" data-id="${escapeHtml(student.id)}"><span class="student-badge">${escapeHtml(initials(student.name))}</span><span class="student-row-main"><b>${escapeHtml(student.name)}</b><small>${escapeHtml(student.grade || 'Grade not entered')} · ${student.accommodations.length} accommodations</small></span><span class="tag">${escapeHtml(student.supportArea || 'Learning')}</span><span class="chevron">›</span></button>`;
+    const className = getClassName(student.classId);
+    return `<button class="student-row" data-action="student" data-id="${escapeHtml(student.id)}"><span class="student-badge">${escapeHtml(initials(student.name))}</span><span class="student-row-main"><b>${escapeHtml(student.name)}</b><small>${escapeHtml(student.grade || 'Grade not entered')} · ${escapeHtml(className || 'No class')} · ${student.accommodations.length} accommodations</small></span><span class="tag">${escapeHtml(student.supportArea || 'Learning')}</span><span class="chevron">›</span></button>`;
   }
+  function getClassName(classId) { return data.classes.find(item => item.id === classId)?.name || ''; }
   function renderHome() {
     const recent = data.logs.slice().sort((a, b) => `${b.date}${b.createdAt}`.localeCompare(`${a.date}${a.createdAt}`)).slice(0, 5);
     const activeAccoms = data.students.reduce((sum, student) => sum + student.accommodations.length, 0);
@@ -187,10 +191,19 @@
   }
   function daysAgo(date) { const day = new Date(`${date}T00:00:00`).getTime(); return Math.floor((Date.now() - day) / 86400000); }
   function prettyDate(date) { if (!date) return ''; const d = new Date(`${date}T00:00:00`); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
-  function emptyBlock(title, body, action) { return `<div class="empty"><div class="empty-icon">✳</div><b>${title}</b><p>${body}</p><button class="button primary" data-action="${action}">＋ Add student</button></div>`; }
+  function emptyBlock(title, body, action) { const label=action==='add-class'?'＋ Add class':'＋ Add student'; return `<div class="empty"><div class="empty-icon">✳</div><b>${title}</b><p>${body}</p><button class="button primary" data-action="${action}">${label}</button></div>`; }
   function renderStudents() {
-    const rows = data.students.slice().sort((a, b) => a.name.localeCompare(b.name)).map(studentCard).join('');
-    return `<section class="page-heading"><div><div class="eyebrow">YOUR CLASSROOM</div><h1>Students</h1><p>Select a student to record accommodations, scores, and TEKS growth.</p></div><button class="button primary" data-action="add-student">＋ Add student</button></section><div class="panel">${data.students.length ? `<label class="search-label">Find a student<input id="studentSearch" type="search" placeholder="Type a name…"></label><div id="studentList" class="student-list">${rows}</div>` : emptyBlock('Your roster is empty', 'Add your first student to get started.', 'add-student')}</div>`;
+    const classOptions=data.classes.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(item=>`<option value="${escapeHtml(item.id)}" ${item.id===studentClassFilter?'selected':''}>${escapeHtml(item.name)}</option>`).join('');
+    const visibleStudents=data.students.filter(student=>!studentClassFilter||student.classId===studentClassFilter).sort((a,b)=>a.name.localeCompare(b.name));
+    const rows=visibleStudents.map(studentCard).join('');
+    return `<section class="page-heading"><div><div class="eyebrow">YOUR CLASSROOM</div><h1>Students</h1><p>Select a student to record accommodations, scores, and TEKS growth.</p></div><button class="button primary" data-action="add-student">＋ Add student</button></section><div class="panel">${data.students.length ? `<div class="student-filters"><label class="search-label">Find a student<input id="studentSearch" type="search" placeholder="Type a name…"></label><label class="search-label">Class or period<select id="classFilter"><option value="">All classes</option>${classOptions}</select></label></div><div id="studentList" class="student-list">${rows||'<p class="muted padded">No students are assigned to this class yet.</p>'}</div>` : emptyBlock('Your roster is empty', 'Add your first student to get started.', 'add-student')}</div>`;
+  }
+  function renderClasses() {
+    const cards=data.classes.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(item=>{
+      const roster=data.students.filter(student=>student.classId===item.id);
+      return `<article class="class-card"><div class="class-card-top"><span class="class-icon">▦</span><div><h2>${escapeHtml(item.name)}</h2><p>${roster.length} ${roster.length===1?'student':'students'}</p></div></div><div class="class-card-actions"><button class="button primary small" data-action="view-class" data-id="${escapeHtml(item.id)}">View students</button><button class="button secondary small" data-action="add-student-to-class" data-id="${escapeHtml(item.id)}">＋ Student</button><button class="button secondary small" data-action="edit-class" data-id="${escapeHtml(item.id)}">Rename</button><button class="icon-button" data-action="delete-class" data-id="${escapeHtml(item.id)}" aria-label="Delete ${escapeHtml(item.name)}">×</button></div></article>`;
+    }).join('');
+    return `<section class="page-heading"><div><div class="eyebrow">ORGANIZE YOUR ROSTER</div><h1>Classes</h1><p>Create class periods, assign students, and open a class roster with one click.</p></div><button class="button primary" data-action="add-class">＋ Add class</button></section>${cards?`<div class="class-grid">${cards}</div>`:`<div class="panel">${emptyBlock('No classes set up yet','Add class periods such as Period 1 or Math 3, then assign students to them.','add-class')}</div>`}`;
   }
   function renderReports() {
     const rows = teksSummary().map(item => `<tr><td><b>${escapeHtml(item.code)}</b>${item.priority ? ' <span class="priority">Priority</span>' : ''}</td><td>${item.studentCount}</td><td>${item.first == null ? '—' : `${Math.round(item.first)}%`}</td><td>${item.latest == null ? '—' : `${Math.round(item.latest)}%`}</td><td class="${item.growth > 0 ? 'positive' : item.growth < 0 ? 'negative' : ''}">${item.growth == null ? '—' : `${item.growth > 0 ? '+' : ''}${Math.round(item.growth)} pp`}</td></tr>`).join('');
@@ -242,6 +255,11 @@
     if (action === 'add-student') openStudentForm();
     else if (action === 'student') openStudent(button.dataset.id);
     else if (action === 'view-students') showView('students');
+    else if (action === 'add-class') openClassForm();
+    else if (action === 'edit-class') openClassForm(button.dataset.id);
+    else if (action === 'view-class') showView('students',button.dataset.id);
+    else if (action === 'add-student-to-class') { studentClassFilter=button.dataset.id; openStudentForm(); }
+    else if (action === 'delete-class') deleteClass(button.dataset.id);
     else if (action === 'log') openLogForm();
     else if (action === 'score') openScoreForm(button.dataset.id);
     else if (action === 'edit-student') openStudentForm(button.dataset.id);
@@ -252,6 +270,7 @@
     else if (action === 'remove-teks') { data.teks.splice(Number(button.dataset.index),1); persist(); showView('standards'); }
   }
   function onViewChange(event) {
+    if (event.target.id === 'classFilter') { showView('students',event.target.value); return; }
     if (event.target.matches('[data-action="priority-teks"]')) {
       data.teks[Number(event.target.dataset.index)].priority = event.target.checked; persist(); showView('standards');
     }
@@ -260,7 +279,7 @@
   function onViewInput(event) {
     if (event.target.id === 'studentSearch') {
       const query = event.target.value.toLowerCase();
-      $('studentList').innerHTML = data.students.filter(student => student.name.toLowerCase().includes(query)).sort((a,b)=>a.name.localeCompare(b.name)).map(studentCard).join('') || '<p class="muted padded">No students match your search.</p>';
+      $('studentList').innerHTML = data.students.filter(student => student.name.toLowerCase().includes(query)&&(!studentClassFilter||student.classId===studentClassFilter)).sort((a,b)=>a.name.localeCompare(b.name)).map(studentCard).join('') || '<p class="muted padded">No students match this search and class.</p>';
     }
   }
   function onModalClick(event) {
@@ -268,6 +287,7 @@
     const actionButton = event.target.closest('[data-modal-action]');
     const action = actionButton?.dataset.modalAction;
     if (action === 'add-accommodation') addCustomAccommodation();
+    if (action === 'go-classes') { closeModal(); showView('classes'); }
     if (action === 'report-print') window.print();
     if (action === 'report-csv') exportStudentCSV(actionButton.dataset.id);
     if (action === 'add-score-row') addScoreRow();
@@ -279,6 +299,7 @@
   }
   function onModalSubmit(event) {
     if (event.target.id === 'studentForm') { event.preventDefault(); saveStudent(event.target); }
+    if (event.target.id === 'classForm') { event.preventDefault(); saveClass(event.target); }
     if (event.target.id === 'logForm') { event.preventDefault(); saveLog(event.target); }
     if (event.target.id === 'scoreForm') { event.preventDefault(); saveScore(event.target); }
     if (event.target.id === 'quickAddForm') { event.preventDefault(); addQuickAccommodation(event.target); }
@@ -302,12 +323,35 @@
   }
   function closeModal() { $('modalRoot').innerHTML = ''; document.body.classList.remove('modal-open'); }
   function modalHead(title, subtitle = '') { return `<header class="modal-head"><div><h2>${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ''}</div><button class="icon-button" data-close aria-label="Close">×</button></header>`; }
+  function openClassForm(classId = '') {
+    const item=data.classes.find(row=>row.id===classId);
+    openModal(`${modalHead(item?'Rename class':'Add a class',item?'Update the class or period label for this roster.':'Use a simple label teachers recognize, such as Period 1 or Math 3.')}
+      <form id="classForm" data-id="${escapeHtml(classId)}"><label>Class or period name<input name="name" required maxlength="60" value="${escapeHtml(item?.name||'')}" placeholder="For example, Period 1 — Math"></label><footer class="modal-footer"><button type="button" class="button secondary" data-close>Cancel</button><button type="submit" class="button primary">${item?'Save name':'Add class'}</button></footer></form>`);
+  }
+  function saveClass(form) {
+    const name=String(new FormData(form).get('name')||'').trim();
+    if(!name){toast('Enter a class or period name');return;}
+    if(data.classes.some(item=>item.name.toLowerCase()===name.toLowerCase()&&item.id!==form.dataset.id)){toast('That class name is already on your list');return;}
+    const id=form.dataset.id;
+    if(id) data.classes=data.classes.map(item=>item.id===id?{...item,name}:item);
+    else data.classes.push({id:uid(),name});
+    persist();closeModal();showView('classes');toast(id?'Class renamed':'Class added');
+  }
+  function deleteClass(classId) {
+    const item=data.classes.find(row=>row.id===classId);if(!item)return;
+    const count=data.students.filter(student=>student.classId===classId).length;
+    if(!confirm(`Remove ${item.name}? ${count?`${count} assigned ${count===1?'student will':'students will'} remain in your roster as unassigned.`:'This class will be removed from your list.'}`))return;
+    data.classes=data.classes.filter(row=>row.id!==classId);
+    data.students=data.students.map(student=>student.classId===classId?{...student,classId:''}:student);
+    persist();showView('classes');toast('Class removed');
+  }
   function openStudentForm(studentId = '') {
     const student = data.students.find(item => item.id === studentId);
     const selected = new Set(student?.accommodations || []);
     const checks = ACCOMMODATIONS.map(name => `<label class="accom-choice"><input type="checkbox" name="accommodation" value="${escapeHtml(name)}" ${selected.has(name) ? 'checked' : ''}><span>${escapeHtml(name)}</span></label>`).join('');
+    const classOptions=data.classes.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(item=>`<option value="${escapeHtml(item.id)}" ${student?.classId===item.id||(!student&&studentClassFilter===item.id)?'selected':''}>${escapeHtml(item.name)}</option>`).join('');
     openModal(`${modalHead(student ? 'Edit student' : 'Add student', 'Choose common accommodations, then save the student plan.')}
-      <form id="studentForm" data-id="${escapeHtml(studentId)}"><div class="form-grid"><label>Student name<input name="name" required value="${escapeHtml(student?.name || '')}" placeholder="First and last name"></label><label>Grade<input name="grade" value="${escapeHtml(student?.grade || '')}" placeholder="For example, 5"></label><label>Support area<select name="supportArea"><option ${!student?.supportArea || student.supportArea==='Learning'?'selected':''}>Learning</option><option ${student?.supportArea==='Access'?'selected':''}>Access</option><option ${student?.supportArea==='Sensory'?'selected':''}>Sensory</option><option ${student?.supportArea==='Other'?'selected':''}>Other</option></select></label></div><fieldset><legend>Accommodations</legend><div class="accom-grid">${checks}</div><div id="customAccomList" class="custom-accom-list">${(student?.accommodations || []).filter(item => !ACCOMMODATIONS.includes(item)).map(name => `<label class="accom-choice"><input type="checkbox" name="accommodation" checked value="${escapeHtml(name)}"><span>${escapeHtml(name)}</span></label>`).join('')}</div><div class="inline-add"><input id="customAccommodation" placeholder="Add a custom accommodation"><button type="button" class="button secondary small" data-modal-action="add-accommodation">Add</button></div></fieldset><label>Plan notes <span class="optional">optional</span><textarea name="notes" rows="3" placeholder="Helpful classroom reminders">${escapeHtml(student?.notes || '')}</textarea></label><footer class="modal-footer"><button type="button" class="button secondary" data-close>Cancel</button><button class="button primary" type="submit">Save student</button></footer></form>`);
+      <form id="studentForm" data-id="${escapeHtml(studentId)}"><div class="form-grid"><label>Student name<input name="name" required value="${escapeHtml(student?.name || '')}" placeholder="First and last name"></label><label>Grade<input name="grade" value="${escapeHtml(student?.grade || '')}" placeholder="For example, 5"></label><label>Class or period<select name="classId"><option value="">No class assigned</option>${classOptions}</select></label><label>Support area<select name="supportArea"><option ${!student?.supportArea || student.supportArea==='Learning'?'selected':''}>Learning</option><option ${student?.supportArea==='Access'?'selected':''}>Access</option><option ${student?.supportArea==='Sensory'?'selected':''}>Sensory</option><option ${student?.supportArea==='Other'?'selected':''}>Other</option></select></label></div>${data.classes.length?'':'<div class="soft-note">Want to assign a period? Add your classes first in the Classes tab.<button type="button" class="link-button" data-modal-action="go-classes">Go to Classes</button></div>'}<fieldset><legend>Accommodations</legend><div class="accom-grid">${checks}</div><div id="customAccomList" class="custom-accom-list">${(student?.accommodations || []).filter(item => !ACCOMMODATIONS.includes(item)).map(name => `<label class="accom-choice"><input type="checkbox" name="accommodation" checked value="${escapeHtml(name)}"><span>${escapeHtml(name)}</span></label>`).join('')}</div><div class="inline-add"><input id="customAccommodation" placeholder="Add a custom accommodation"><button type="button" class="button secondary small" data-modal-action="add-accommodation">Add</button></div></fieldset><label>Plan notes <span class="optional">optional</span><textarea name="notes" rows="3" placeholder="Helpful classroom reminders">${escapeHtml(student?.notes || '')}</textarea></label><footer class="modal-footer"><button type="button" class="button secondary" data-close>Cancel</button><button class="button primary" type="submit">Save student</button></footer></form>`);
   }
   function addCustomAccommodation() {
     const input = $('customAccommodation'); const value = input.value.trim(); if (!value) return;
@@ -317,9 +361,10 @@
   }
   function saveStudent(form) {
     const formData = new FormData(form); const id = form.dataset.id;
-    const student = { id: id || uid(), name: String(formData.get('name')).trim(), grade: String(formData.get('grade') || '').trim(), supportArea: formData.get('supportArea'), accommodations: formData.getAll('accommodation').map(String), notes: String(formData.get('notes') || '').trim(), updatedAt: new Date().toISOString() };
+    const student = { id: id || uid(), name: String(formData.get('name')).trim(), grade: String(formData.get('grade') || '').trim(), classId: String(formData.get('classId') || ''), supportArea: formData.get('supportArea'), accommodations: formData.getAll('accommodation').map(String), notes: String(formData.get('notes') || '').trim(), updatedAt: new Date().toISOString() };
     if (id) data.students = data.students.map(item => item.id === id ? student : item); else data.students.push(student);
-    persist(); closeModal(); showView(viewName); toast(id ? 'Student updated' : 'Student added');
+    const currentClassFilter=studentClassFilter;
+    persist(); closeModal(); showView(viewName,currentClassFilter); toast(id ? 'Student updated' : 'Student added');
   }
   function openStudent(id) {
     const student = data.students.find(item => item.id === id); if (!student) return;
@@ -338,7 +383,8 @@
   function deleteStudent(id) {
     const student = data.students.find(item=>item.id===id); if (!student) return;
     if (!confirm(`Delete ${student.name} and all of their check-ins and test scores from this browser? This cannot be undone.`)) return;
-    data.students = data.students.filter(item=>item.id!==id); data.logs=data.logs.filter(item=>item.studentId!==id); data.tests=data.tests.filter(item=>item.studentId!==id); data.scores=data.scores.filter(item=>item.studentId!==id); persist(); closeModal(); showView(viewName); toast('Student and records deleted');
+    const currentClassFilter=studentClassFilter;
+    data.students = data.students.filter(item=>item.id!==id); data.logs=data.logs.filter(item=>item.studentId!==id); data.tests=data.tests.filter(item=>item.studentId!==id); data.scores=data.scores.filter(item=>item.studentId!==id); persist(); closeModal(); showView(viewName,currentClassFilter); toast('Student and records deleted');
   }
   function openLogForm(studentId = '') {
     if (!data.students.length) { toast('Add a student first'); return; }
