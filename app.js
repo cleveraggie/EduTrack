@@ -201,7 +201,7 @@
   function renderClasses() {
     const cards=data.classes.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(item=>{
       const roster=data.students.filter(student=>student.classId===item.id);
-      return `<article class="class-card"><div class="class-card-top"><span class="class-icon">▦</span><div><h2>${escapeHtml(item.name)}</h2><p>${roster.length} ${roster.length===1?'student':'students'}</p></div></div><div class="class-card-actions"><button class="button primary small" data-action="view-class" data-id="${escapeHtml(item.id)}">View students</button><button class="button secondary small" data-action="add-student-to-class" data-id="${escapeHtml(item.id)}">＋ Student</button><button class="button secondary small" data-action="edit-class" data-id="${escapeHtml(item.id)}">Rename</button><button class="icon-button" data-action="delete-class" data-id="${escapeHtml(item.id)}" aria-label="Delete ${escapeHtml(item.name)}">×</button></div></article>`;
+      return `<article class="class-card"><div class="class-card-top"><span class="class-icon">▦</span><div><h2>${escapeHtml(item.name)}</h2><p>${roster.length} ${roster.length===1?'student':'students'}</p></div></div><div class="class-card-actions"><button class="button primary small" data-action="view-class" data-id="${escapeHtml(item.id)}">View students</button><button class="button secondary small" data-action="add-existing-students" data-id="${escapeHtml(item.id)}">＋ Add existing</button><button class="button secondary small" data-action="add-student-to-class" data-id="${escapeHtml(item.id)}">＋ New student</button><button class="button secondary small" data-action="edit-class" data-id="${escapeHtml(item.id)}">Rename</button><button class="icon-button" data-action="delete-class" data-id="${escapeHtml(item.id)}" aria-label="Delete ${escapeHtml(item.name)}">×</button></div></article>`;
     }).join('');
     return `<section class="page-heading"><div><div class="eyebrow">ORGANIZE YOUR ROSTER</div><h1>Classes</h1><p>Create class periods, assign students, and open a class roster with one click.</p></div><button class="button primary" data-action="add-class">＋ Add class</button></section>${cards?`<div class="class-grid">${cards}</div>`:`<div class="panel">${emptyBlock('No classes set up yet','Add class periods such as Period 1 or Math 3, then assign students to them.','add-class')}</div>`}`;
   }
@@ -258,6 +258,7 @@
     else if (action === 'add-class') openClassForm();
     else if (action === 'edit-class') openClassForm(button.dataset.id);
     else if (action === 'view-class') showView('students',button.dataset.id);
+    else if (action === 'add-existing-students') openExistingStudentsForm(button.dataset.id);
     else if (action === 'add-student-to-class') { studentClassFilter=button.dataset.id; openStudentForm(); }
     else if (action === 'delete-class') deleteClass(button.dataset.id);
     else if (action === 'log') openLogForm();
@@ -300,6 +301,7 @@
   function onModalSubmit(event) {
     if (event.target.id === 'studentForm') { event.preventDefault(); saveStudent(event.target); }
     if (event.target.id === 'classForm') { event.preventDefault(); saveClass(event.target); }
+    if (event.target.id === 'existingStudentsForm') { event.preventDefault(); saveExistingStudents(event.target); }
     if (event.target.id === 'logForm') { event.preventDefault(); saveLog(event.target); }
     if (event.target.id === 'scoreForm') { event.preventDefault(); saveScore(event.target); }
     if (event.target.id === 'quickAddForm') { event.preventDefault(); addQuickAccommodation(event.target); }
@@ -344,6 +346,20 @@
     data.classes=data.classes.filter(row=>row.id!==classId);
     data.students=data.students.map(student=>student.classId===classId?{...student,classId:''}:student);
     persist();showView('classes');toast('Class removed');
+  }
+  function openExistingStudentsForm(classId) {
+    const classItem=data.classes.find(item=>item.id===classId);if(!classItem)return;
+    const candidates=data.students.filter(student=>student.classId!==classId).sort((a,b)=>a.name.localeCompare(b.name));
+    const choices=candidates.map(student=>`<label class="existing-student-choice"><input type="checkbox" name="studentId" value="${escapeHtml(student.id)}"><span><b>${escapeHtml(student.name)}</b><small>${escapeHtml(student.grade||'Grade not entered')} · ${escapeHtml(getClassName(student.classId)||'No class assigned')}</small></span></label>`).join('');
+    openModal(`${modalHead(`Add students to ${escapeHtml(classItem.name)}`,candidates.some(student=>student.classId)?'Choose students from your roster. Students assigned to another class will move into this class.':'Choose students from your roster to add to this class.')}
+      <form id="existingStudentsForm" data-class="${escapeHtml(classId)}">${choices?`<div class="existing-students-list">${choices}</div>`:'<div class="soft-note">There are no other students in your roster to add. You can create a new student from the Classes page.</div>'}<footer class="modal-footer"><button type="button" class="button secondary" data-close>Cancel</button><button class="button primary" type="submit" ${choices?'':'disabled'}>Add selected students</button></footer></form>`,true);
+  }
+  function saveExistingStudents(form) {
+    const classId=form.dataset.class;
+    const selected=new Set(new FormData(form).getAll('studentId').map(String));
+    if(!selected.size){toast('Select at least one student');return;}
+    data.students=data.students.map(student=>selected.has(student.id)?{...student,classId}:student);
+    persist();closeModal();showView('classes');toast(`${selected.size} ${selected.size===1?'student':'students'} added to class`);
   }
   function openStudentForm(studentId = '') {
     const student = data.students.find(item => item.id === studentId);
