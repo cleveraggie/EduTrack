@@ -90,6 +90,7 @@
     document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
     $('view').addEventListener('click', onViewClick);
     $('view').addEventListener('change', onViewChange);
+    $('view').addEventListener('submit', onViewSubmit);
     $('modalRoot').addEventListener('click', onModalClick);
     $('modalRoot').addEventListener('submit', onModalSubmit);
     $('modalRoot').addEventListener('change', onModalChange);
@@ -168,8 +169,8 @@
   function showView(next) {
     viewName = next; selectedStudent = null;
     document.querySelectorAll('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === next));
-    $('crumb').textContent = ({ home: 'Overview', students: 'Students', reports: 'Reports', settings: 'Settings' })[next] || 'Overview';
-    const renders = { home: renderHome, students: renderStudents, reports: renderReports, settings: renderSettings };
+    $('crumb').textContent = ({ home: 'Overview', students: 'Students', standards: 'Set Standards', reports: 'Reports', settings: 'Settings' })[next] || 'Overview';
+    const renders = { home: renderHome, students: renderStudents, standards: renderStandards, reports: renderReports, settings: renderSettings };
     $('view').innerHTML = (renders[next] || renderHome)(); $('view').focus({ preventScroll: true });
   }
   function studentCard(student) {
@@ -198,11 +199,27 @@
       <div class="panel"><div class="panel-heading"><div><h2>TEKS growth</h2><p>First and latest recorded percentages by TEKS.</p></div></div>${rows ? `<div class="table-wrap"><table><thead><tr><th>TEKS</th><th>Students</th><th>First</th><th>Latest</th><th>Growth</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted padded">Record test scores by TEKS to see growth here.</p>'}</div></div>
       <div class="privacy-card"><b>Sharing a report?</b><span>Reports are generated in your browser. Review the information before printing or sharing it.</span></div>`;
   }
-  function renderSettings() {
+  function renderStandards() {
     const teksRows = data.teks.map((item, index) => `<div class="teks-row"><div><b>${escapeHtml(item.code)}</b>${item.description ? `<small>${escapeHtml(item.description)}</small>` : ''}</div><label class="checkline"><input type="checkbox" data-action="priority-teks" data-index="${index}" ${item.priority ? 'checked' : ''}> Priority</label><button class="icon-button" data-action="remove-teks" data-index="${index}" aria-label="Remove TEKS">×</button></div>`).join('');
-    return `<section class="page-heading"><div><div class="eyebrow">YOUR SPACE</div><h1>Settings</h1><p>Choose the TEKS and accommodations you use often. Your lists stay on this device.</p></div></section>
-      <div class="settings-grid"><section class="panel"><div class="panel-heading"><div><h2>Your TEKS list</h2><p>Add important standards once, then choose them from a menu when entering scores.</p></div></div><form id="teksForm" class="teks-form"><label>TEKS code<input name="code" required placeholder="For example, 5.3A"></label><label>Description <span class="optional">optional</span><input name="description" placeholder="Short description"></label><label class="checkline"><input name="priority" type="checkbox"> Priority TEKS</label><button class="button primary" type="submit">Add TEKS</button></form><div id="teksList">${teksRows || '<p class="muted padded">No TEKS saved yet. Add one above.</p>'}</div></section>
-      <section class="panel"><div class="panel-heading"><div><h2>Backup and restore</h2><p>Your classroom data stays in this browser. A backup lets you move it to another device.</p></div></div><div class="settings-actions"><button class="button secondary" data-action="backup">↓ Download backup</button><label class="button secondary file-button">↑ Restore backup<input id="restoreFile" type="file" accept="application/json,.json"></label></div><div class="soft-note"><b>This device only</b><p>Clearing this browser’s site data removes your saved classroom data. Download a backup regularly. Backups contain student information; store and share them according to your school’s rules.</p></div><div class="profile-form"><h3>Teacher name</h3><label>Display name<input id="profileName" value="${escapeHtml(currentTeacherName())}"></label><button class="button secondary" data-action="save-name">Save name</button></div></section></div>`;
+    return `<section class="page-heading"><div><div class="eyebrow">YOUR CLASSROOM</div><h1>Set Standards for Monitoring</h1><p>Add the TEKS your team wants to track. They will appear in the test score form.</p></div></section>
+      <section class="panel"><div class="panel-heading"><div><h2>Standards to monitor</h2><p>Add a TEKS code, an optional reminder, and mark priority standards.</p></div></div><form id="teksForm" class="teks-form"><label>TEKS code<input name="code" required placeholder="For example, 5.3A"></label><label>Description <span class="optional">optional</span><input name="description" placeholder="Short description"></label><label class="checkline"><input name="priority" type="checkbox"> Priority TEKS</label><button class="button primary" type="submit">Add TEKS</button></form><div id="teksList">${teksRows || '<p class="muted padded">No standards yet. Add the first TEKS above.</p>'}</div></section>`;
+  }
+  function renderSettings() {
+    return `<section class="page-heading"><div><div class="eyebrow">YOUR SPACE</div><h1>Settings</h1><p>Manage your teacher name and classroom backup.</p></div></section>
+      <section class="panel"><div class="panel-heading"><div><h2>Backup and restore</h2><p>Your classroom data stays in this browser. A backup lets you move it to another device.</p></div></div><div class="settings-actions"><button class="button secondary" data-action="backup">↓ Download backup</button><label class="button secondary file-button">↑ Restore backup<input id="restoreFile" type="file" accept="application/json,.json"></label></div><div class="soft-note"><b>This device only</b><p>Clearing this browser’s site data removes your saved classroom data. Download a backup regularly. Backups contain student information; store and share them according to your school’s rules.</p></div><div class="profile-form"><h3>Teacher name</h3><label>Display name<input id="profileName" value="${escapeHtml(currentTeacherName())}"></label><button class="button secondary" data-action="save-name">Save name</button></div></section>`;
+  }
+  function onViewSubmit(event) {
+    if (event.target.id !== 'teksForm') return;
+    event.preventDefault();
+    const fields = new FormData(event.target);
+    const code = String(fields.get('code') || '').trim();
+    const description = String(fields.get('description') || '').trim();
+    if (!code) { toast('Enter a TEKS code first'); return; }
+    if (data.teks.some(item => item.code.toLowerCase() === code.toLowerCase())) {
+      toast('That TEKS is already on your list'); return;
+    }
+    data.teks.push({ id: uid(), code, description, priority: fields.get('priority') === 'on' });
+    persist(); showView('standards'); toast(`${code} added to your standards`);
   }
   function teksSummary() {
     const codes = new Set([...data.teks.map(item => item.code), ...data.scores.map(item => item.teks)]);
@@ -232,11 +249,11 @@
     else if (action === 'student-report') openReport(button.dataset.id);
     else if (action === 'backup') downloadBackup();
     else if (action === 'save-name') saveTeacherName();
-    else if (action === 'remove-teks') { data.teks.splice(Number(button.dataset.index),1); persist(); showView('settings'); }
+    else if (action === 'remove-teks') { data.teks.splice(Number(button.dataset.index),1); persist(); showView('standards'); }
   }
   function onViewChange(event) {
     if (event.target.matches('[data-action="priority-teks"]')) {
-      data.teks[Number(event.target.dataset.index)].priority = event.target.checked; persist(); showView('settings');
+      data.teks[Number(event.target.dataset.index)].priority = event.target.checked; persist(); showView('standards');
     }
     if (event.target.id === 'restoreFile') restoreBackup(event.target.files?.[0]);
   }
