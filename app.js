@@ -265,10 +265,17 @@
   }
   function onModalClick(event) {
     const close = event.target.closest('[data-close]'); if (close || event.target.id === 'modalBackdrop') closeModal();
-    const action = event.target.closest('[data-modal-action]')?.dataset.modalAction;
+    const actionButton = event.target.closest('[data-modal-action]');
+    const action = actionButton?.dataset.modalAction;
     if (action === 'add-accommodation') addCustomAccommodation();
     if (action === 'report-print') window.print();
-    if (action === 'report-csv') exportStudentCSV(event.target.dataset.id);
+    if (action === 'report-csv') exportStudentCSV(actionButton.dataset.id);
+    if (action === 'add-score-row') addScoreRow();
+    if (action === 'remove-score-row') {
+      const rows=$('scoreRows')?.querySelectorAll('[data-score-row]') || [];
+      if (rows.length <= 1) toast('Keep at least one TEKS row');
+      else actionButton.closest('[data-score-row]')?.remove();
+    }
   }
   function onModalSubmit(event) {
     if (event.target.id === 'studentForm') { event.preventDefault(); saveStudent(event.target); }
@@ -278,6 +285,10 @@
   }
   function onModalChange(event) {
     if (event.target.id === 'logStudent') { renderLogAccommodations(event.target.value); }
+    if (event.target.matches('#scoreRows select[name="teks"]')) {
+      const selected = data.teks.find(item => item.code === event.target.value);
+      event.target.closest('[data-score-row]').querySelector('[name="priority"]').checked = !!selected?.priority;
+    }
   }
   function onModalInput(event) {
     if (event.target.id === 'scoreRows') { /* reserved for future row editing */ }
@@ -351,16 +362,28 @@
     persist(); closeModal(); showView(viewName); toast('Accommodation check-in saved');
   }
   function openScoreForm(studentId) {
-    if (!data.teks.length) { toast('Add your TEKS list in Settings first'); return; }
+    if (!data.teks.length) { toast('Add TEKS in Set Standards first'); return; }
     const student=data.students.find(item=>item.id===studentId); if (!student) return;
-    const teksOptions=data.teks.map(item=>`<option value="${escapeHtml(item.code)}">${escapeHtml(item.code)}${item.priority?' · Priority':''}</option>`).join('');
-    openModal(`${modalHead('Add test score', `Record one score for ${escapeHtml(student.name)}.`)}<form id="scoreForm" data-student="${escapeHtml(studentId)}"><div class="form-grid"><label>Test name<input name="assessment" required placeholder="Unit assessment"></label><label>Test date<input type="date" name="date" value="${dateToday()}" required></label><label>TEKS<select name="teks" required>${teksOptions}</select></label><label>Points earned<input name="earned" type="number" min="0" step="any" required></label><label>Points possible<input name="possible" type="number" min="0.01" step="any" required></label><label class="checkline"><input name="priority" type="checkbox"> Priority TEKS</label></div><footer class="modal-footer"><button type="button" class="button secondary" data-close>Cancel</button><button class="button primary" type="submit">Save score</button></footer></form>`);
+    openModal(`${modalHead('Add test scores', `Enter the test once, then add one row for each TEKS you want to monitor for ${escapeHtml(student.name)}.`)}<form id="scoreForm" data-student="${escapeHtml(studentId)}"><div class="form-grid score-test-info"><label>Test name<input name="assessment" required placeholder="Unit assessment"></label><label>Test date<input type="date" name="date" value="${dateToday()}" required></label></div><div id="scoreRows" class="score-rows">${scoreRowHtml()}</div><button type="button" class="button secondary small add-score-row" data-modal-action="add-score-row">＋ Add another TEKS</button><footer class="modal-footer"><button type="button" class="button secondary" data-close>Cancel</button><button class="button primary" type="submit">Save all TEKS scores</button></footer></form>`, true);
+  }
+  function scoreRowHtml() {
+    const options=data.teks.map(item=>`<option value="${escapeHtml(item.code)}" ${item.priority?'data-priority="true"':''}>${escapeHtml(item.code)}${item.priority?' · Priority':''}</option>`).join('');
+    return `<div class="score-row" data-score-row><label>TEKS<select name="teks" required>${options}</select></label><label>Points earned<input name="earned" type="number" min="0" step="any" required placeholder="0"></label><label>Points possible<input name="possible" type="number" min="0.01" step="any" required placeholder="0"></label><label class="checkline priority-score"><input name="priority" type="checkbox" ${data.teks[0]?.priority?'checked':''}> Priority TEKS</label><button type="button" class="icon-button score-remove" data-modal-action="remove-score-row" aria-label="Remove this TEKS row">×</button></div>`;
+  }
+  function addScoreRow() {
+    const container=$('scoreRows'); if (!container) return;
+    container.insertAdjacentHTML('beforeend',scoreRowHtml());
+    container.lastElementChild.querySelector('select')?.focus();
   }
   function saveScore(form) {
-    const f=new FormData(form), earned=Number(f.get('earned')), possible=Number(f.get('possible'));
-    if (!possible || earned<0 || earned>possible) { toast('Points earned must be between zero and the points possible'); return; }
-    data.scores.push({id:uid(),studentId:form.dataset.student,assessment:String(f.get('assessment')).trim(),date:f.get('date'),teks:f.get('teks'),earned,possible,priority:f.get('priority')==='on',createdAt:new Date().toISOString()});
-    persist(); closeModal(); openStudent(form.dataset.student); toast('Test score saved');
+    const rows=[...form.querySelectorAll('[data-score-row]')];
+    const entries=rows.map(row=>({teks:row.querySelector('[name="teks"]').value,earned:Number(row.querySelector('[name="earned"]').value),possible:Number(row.querySelector('[name="possible"]').value),priority:row.querySelector('[name="priority"]').checked}));
+    if (!entries.length) { toast('Add at least one TEKS row'); return; }
+    if (entries.some(item=>!item.possible||item.earned<0||item.earned>item.possible)) { toast('Check each score: points earned must be between zero and points possible'); return; }
+    if (new Set(entries.map(item=>item.teks)).size !== entries.length) { toast('Each TEKS can only be added once for this test'); return; }
+    const fields=new FormData(form), assessment=String(fields.get('assessment')).trim(), date=fields.get('date');
+    entries.forEach(item=>data.scores.push({id:uid(),studentId:form.dataset.student,assessment,date,teks:item.teks,earned:item.earned,possible:item.possible,priority:item.priority,createdAt:new Date().toISOString()}));
+    persist(); closeModal(); openStudent(form.dataset.student); toast(`${entries.length} TEKS ${entries.length===1?'score':'scores'} saved`);
   }
   function openReport(studentId) {
     const student=data.students.find(item=>item.id===studentId); if (!student) return;

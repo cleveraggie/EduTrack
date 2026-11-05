@@ -44,7 +44,7 @@ The included workflow cancels an older in-progress Pages deployment when a newer
 
 - Add a student and select their accommodations with checkboxes. The built-in list includes Hard copy notes; oral responses is not included. Add a custom accommodation when needed.
 - Select a student and choose **Record today**. For each listed accommodation, click **Used** or **Not used** and save the date and activity type (Daily, Test, or Other).
-- Add frequently used TEKS under **Settings**. Mark priority standards so they stand out in growth reports. Scores are entered a student at a time using a simple form; CSV import is not required.
+- Add frequently used TEKS under **Set Standards**. Mark priority standards so they stand out in growth reports. When entering a test score, add one row for each TEKS covered by that test; enter the test name and date once. CSV import is not required.
 - Use **Reports** for a TEKS growth summary, or open a student and choose **Print report** or **Download CSV**. The report is formatted to use less paper.
 - Use **Settings → Download backup** regularly. Restore a backup in Settings on the browser/device where you want to continue working.
 - Deleting a student also deletes that student’s check-ins and scores from this browser. The app asks you to confirm first.
