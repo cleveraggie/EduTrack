@@ -48,6 +48,7 @@ The included workflow cancels an older in-progress Pages deployment when a newer
 - Add frequently used TEKS under **Set Standards** if you want to monitor them. When recording a test, the only required field is the overall test score. Test name, date, and points possible are optional. Choose **Add TEKS scores** to enter a breakdown by individual standard; TEKS tracking can be skipped completely.
 - Use **Reports** for a TEKS growth summary, or open a student and choose **Print report** or **Download CSV**. The report is formatted to use less paper.
 - Use **Settings → Download backup** regularly. Restore a backup in Settings on the browser/device where you want to continue working.
+- At the end of the year, **Settings → Clear student records** removes student profiles, accommodations, check-ins, and test scores from this browser. It keeps class periods and monitored TEKS. The app asks you to type `CLEAR` and offers a backup download first.
 - Deleting a student also deletes that student’s check-ins and scores from this browser. The app asks you to confirm first.
 
 ## Scope

@@ -221,7 +221,8 @@
   }
   function renderSettings() {
     return `<section class="page-heading"><div><div class="eyebrow">YOUR SPACE</div><h1>Settings</h1><p>Manage your teacher name and classroom backup.</p></div></section>
-      <section class="panel"><div class="panel-heading"><div><h2>Backup and restore</h2><p>Your classroom data stays in this browser. A backup lets you move it to another device.</p></div></div><div class="settings-actions"><button class="button secondary" data-action="backup">↓ Download backup</button><label class="button secondary file-button">↑ Restore backup<input id="restoreFile" type="file" accept="application/json,.json"></label></div><div class="soft-note"><b>This device only</b><p>Clearing this browser’s site data removes your saved classroom data. Download a backup regularly. Backups contain student information; store and share them according to your school’s rules.</p></div><div class="profile-form"><h3>Teacher name</h3><label>Display name<input id="profileName" value="${escapeHtml(currentTeacherName())}"></label><button class="button secondary" data-action="save-name">Save name</button></div></section>`;
+      <section class="panel"><div class="panel-heading"><div><h2>Backup and restore</h2><p>Your classroom data stays in this browser. A backup lets you move it to another device.</p></div></div><div class="settings-actions"><button class="button secondary" data-action="backup">↓ Download backup</button><label class="button secondary file-button">↑ Restore backup<input id="restoreFile" type="file" accept="application/json,.json"></label></div><div class="soft-note"><b>This device only</b><p>Clearing this browser’s site data removes your saved classroom data. Download a backup regularly. Backups contain student information; store and share them according to your school’s rules.</p></div><div class="profile-form"><h3>Teacher name</h3><label>Display name<input id="profileName" value="${escapeHtml(currentTeacherName())}"></label><button class="button secondary" data-action="save-name">Save name</button></div></section>
+      <section class="panel clear-student-panel"><div><h2>End of year</h2><p>Clear student profiles, accommodation plans, check-ins, and test scores from this browser. Your classes and monitored TEKS will stay ready for next year.</p></div><button class="button danger" data-action="clear-student-records">Clear student records</button></section>`;
   }
   function onViewSubmit(event) {
     if (event.target.id !== 'teksForm') return;
@@ -269,6 +270,7 @@
     else if (action === 'delete-student') deleteStudent(button.dataset.id);
     else if (action === 'student-report') openReport(button.dataset.id);
     else if (action === 'backup') downloadBackup();
+    else if (action === 'clear-student-records') openClearStudentsDialog();
     else if (action === 'save-name') saveTeacherName();
     else if (action === 'remove-teks') { data.teks.splice(Number(button.dataset.index),1); persist(); showView('standards'); }
   }
@@ -291,6 +293,7 @@
     const action = actionButton?.dataset.modalAction;
     if (action === 'add-accommodation') addCustomAccommodation();
     if (action === 'go-classes') { closeModal(); showView('classes'); }
+    if (action === 'backup-before-clear') downloadBackup();
     if (action === 'report-print') window.print();
     if (action === 'report-csv') exportStudentCSV(actionButton.dataset.id);
     if (action === 'add-score-row') addScoreRow();
@@ -304,6 +307,7 @@
     if (event.target.id === 'existingStudentsForm') { event.preventDefault(); saveExistingStudents(event.target); }
     if (event.target.id === 'logForm') { event.preventDefault(); saveLog(event.target); }
     if (event.target.id === 'scoreForm') { event.preventDefault(); saveScore(event.target); }
+    if (event.target.id === 'clearStudentsForm') { event.preventDefault(); clearStudentRecords(); }
     if (event.target.id === 'quickAddForm') { event.preventDefault(); addQuickAccommodation(event.target); }
   }
   function onModalChange(event) {
@@ -314,7 +318,10 @@
     }
   }
   function onModalInput(event) {
-    if (event.target.id === 'scoreRows') { /* reserved for future row editing */ }
+    if (event.target.id === 'clearStudentsConfirmation') {
+      const button=$('clearStudentsSubmit');
+      if (button) button.disabled=event.target.value.trim().toUpperCase()!=='CLEAR';
+    }
   }
   $('view')?.addEventListener('input', onViewInput);
 
@@ -477,6 +484,17 @@
   function downloadBackup() {
     const backup={app:'EduTrack',version:1,exportedAt:new Date().toISOString(),teacher:currentTeacherName(),data};
     downloadText(`edutrack-backup-${dateToday()}.json`,JSON.stringify(backup,null,2),'application/json');toast('Backup downloaded');
+  }
+  function openClearStudentsDialog() {
+    if (!data.students.length&&!data.logs.length&&!data.tests.length&&!data.scores.length) { toast('There are no student records to clear'); return; }
+    const studentCount=data.students.length;
+    openModal(`${modalHead('Clear student records','End-of-year roster reset')}
+      <form id="clearStudentsForm"><div class="clear-warning"><b>This removes student data from this browser:</b><ul><li>${studentCount} student ${studentCount===1?'profile':'profiles'}, including accommodation plans and notes</li><li>${data.logs.length} accommodation check-ins</li><li>${data.tests.length} overall test scores and ${data.scores.length} TEKS scores</li></ul><p>Your class periods and monitored TEKS list will remain. This cannot be undone, so download a backup first if you may need these records later.</p><button type="button" class="button secondary small" data-modal-action="backup-before-clear">↓ Download backup first</button></div><label>Type <b>CLEAR</b> to confirm<input id="clearStudentsConfirmation" required autocomplete="off" placeholder="Type CLEAR"></label><footer class="modal-footer"><button type="button" class="button secondary" data-close>Cancel</button><button id="clearStudentsSubmit" class="button danger" type="submit" disabled>Clear student records</button></footer></form>`);
+  }
+  function clearStudentRecords() {
+    if ($('clearStudentsConfirmation')?.value.trim().toUpperCase()!=='CLEAR') { toast('Type CLEAR to confirm'); return; }
+    data.students=[];data.logs=[];data.tests=[];data.scores=[];
+    persist();closeModal();showView('home');toast('Student records cleared from this browser');
   }
   async function restoreBackup(file) {
     if (!file) return;
