@@ -18,6 +18,7 @@
   let viewName = 'home';
   let studentClassFilter = '';
   let selectedStudent = null;
+  let pendingImport = null;
   let saveTimer;
 
   function escapeHtml(value) {
@@ -198,7 +199,7 @@
     const classOptions=data.classes.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(item=>`<option value="${escapeHtml(item.id)}" ${item.id===studentClassFilter?'selected':''}>${escapeHtml(item.name)}</option>`).join('');
     const visibleStudents=data.students.filter(student=>!studentClassFilter||student.classId===studentClassFilter).sort((a,b)=>a.name.localeCompare(b.name));
     const rows=visibleStudents.map(studentCard).join('');
-    return `<section class="page-heading"><div><div class="eyebrow">YOUR CLASSROOM</div><h1>Students</h1><p>Select a student to record accommodations, scores, and TEKS growth.</p></div><button class="button primary" data-action="add-student">＋ Add student</button></section><div class="panel">${data.students.length ? `<div class="student-filters"><label class="search-label">Find a student<input id="studentSearch" type="search" placeholder="Type a name…"></label><label class="search-label">Class or period<select id="classFilter"><option value="">All classes</option>${classOptions}</select></label></div><div id="studentList" class="student-list">${rows||'<p class="muted padded">No students are assigned to this class yet.</p>'}</div>` : emptyBlock('Your roster is empty', 'Add your first student to get started.', 'add-student')}</div>`;
+    return `<section class="page-heading"><div><div class="eyebrow">YOUR CLASSROOM</div><h1>Students</h1><p>Select a student to record accommodations, scores, and TEKS growth.</p></div><div class="heading-actions"><button class="button secondary" data-action="import-roster">↑ Import roster</button><button class="button primary" data-action="add-student">＋ Add student</button></div></section><div class="panel">${data.students.length ? `<div class="student-filters"><label class="search-label">Find a student<input id="studentSearch" type="search" placeholder="Type a name…"></label><label class="search-label">Class or period<select id="classFilter"><option value="">All classes</option>${classOptions}</select></label></div><div id="studentList" class="student-list">${rows||'<p class="muted padded">No students are assigned to this class yet.</p>'}</div>` : emptyBlock('Your roster is empty', 'Add your first student to get started.', 'add-student')}</div>`;
   }
   function renderClasses() {
     const cards=data.classes.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(item=>{
@@ -209,7 +210,7 @@
   }
   function renderReports() {
     const rows = teksSummary().map(item => `<tr><td><b>${escapeHtml(item.code)}</b>${item.priority ? ' <span class="priority">Priority</span>' : ''}</td><td>${item.studentCount}</td><td>${item.first == null ? '—' : `${Math.round(item.first)}%`}</td><td>${item.latest == null ? '—' : `${Math.round(item.latest)}%`}</td><td class="${item.growth > 0 ? 'positive' : item.growth < 0 ? 'negative' : ''}">${item.growth == null ? '—' : `${item.growth > 0 ? '+' : ''}${Math.round(item.growth)} pp`}</td></tr>`).join('');
-    return `<section class="page-heading"><div><div class="eyebrow">LOOK BACK AND SHARE</div><h1>Reports</h1><p>Print a compact student summary or see progress across the TEKS you track.</p></div><button class="button secondary" data-action="backup">↓ Download backup</button></section>
+    return `<section class="page-heading"><div><div class="eyebrow">LOOK BACK AND SHARE</div><h1>Reports</h1><p>Print a compact student summary or see progress across the TEKS you track.</p></div><div class="heading-actions"><button class="button secondary" data-action="import-tests">↑ Import test data</button><button class="button secondary" data-action="backup">↓ Download backup</button></div></section>
       <div class="report-grid"><div class="panel"><div class="panel-heading"><div><h2>Student reports</h2><p>Choose a student for a print-friendly plan, logs, and scores.</p></div></div>${data.students.length ? `<div class="student-list">${data.students.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(studentCard).join('')}</div>` : '<p class="muted padded">Add a student to make a report.</p>'}</div>
       <div class="panel"><div class="panel-heading"><div><h2>TEKS growth</h2><p>First and latest recorded percentages by TEKS.</p></div></div>${rows ? `<div class="table-wrap"><table><thead><tr><th>TEKS</th><th>Students</th><th>First</th><th>Latest</th><th>Growth</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted padded">Record test scores by TEKS to see growth here.</p>'}</div></div>
       <div class="privacy-card"><b>Sharing a report?</b><span>Reports are generated in your browser. Review the information before printing or sharing it.</span></div>`;
@@ -270,6 +271,8 @@
     else if (action === 'delete-student') deleteStudent(button.dataset.id);
     else if (action === 'student-report') openReport(button.dataset.id);
     else if (action === 'backup') downloadBackup();
+    else if (action === 'import-roster') openImportDialog('roster');
+    else if (action === 'import-tests') openImportDialog('tests');
     else if (action === 'clear-student-records') openClearStudentsDialog();
     else if (action === 'save-name') saveTeacherName();
     else if (action === 'remove-teks') { data.teks.splice(Number(button.dataset.index),1); persist(); showView('standards'); }
@@ -294,6 +297,7 @@
     if (action === 'add-accommodation') addCustomAccommodation();
     if (action === 'go-classes') { closeModal(); showView('classes'); }
     if (action === 'backup-before-clear') downloadBackup();
+    if (action === 'download-import-template') downloadImportTemplate(actionButton.dataset.kind);
     if (action === 'report-print') window.print();
     if (action === 'report-csv') exportStudentCSV(actionButton.dataset.id);
     if (action === 'add-score-row') addScoreRow();
@@ -308,9 +312,11 @@
     if (event.target.id === 'logForm') { event.preventDefault(); saveLog(event.target); }
     if (event.target.id === 'scoreForm') { event.preventDefault(); saveScore(event.target); }
     if (event.target.id === 'clearStudentsForm') { event.preventDefault(); clearStudentRecords(); }
+    if (event.target.id === 'importForm') { event.preventDefault(); saveImport(); }
     if (event.target.id === 'quickAddForm') { event.preventDefault(); addQuickAccommodation(event.target); }
   }
   function onModalChange(event) {
+    if (event.target.id === 'importFile') { loadImportFile(event.target.files?.[0]); return; }
     if (event.target.id === 'logStudent') { renderLogAccommodations(event.target.value); }
     if (event.target.matches('#scoreRows select[name="teks"]')) {
       const selected = data.teks.find(item => item.code === event.target.value);
@@ -330,7 +336,7 @@
     document.body.classList.add('modal-open');
     $('modalRoot').querySelector('input:not([type=hidden]),button,select')?.focus();
   }
-  function closeModal() { $('modalRoot').innerHTML = ''; document.body.classList.remove('modal-open'); }
+  function closeModal() { $('modalRoot').innerHTML = ''; document.body.classList.remove('modal-open'); pendingImport=null; }
   function modalHead(title, subtitle = '') { return `<header class="modal-head"><div><h2>${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ''}</div><button class="icon-button" data-close aria-label="Close">×</button></header>`; }
   function openClassForm(classId = '') {
     const item=data.classes.find(row=>row.id===classId);
@@ -495,6 +501,157 @@
     if ($('clearStudentsConfirmation')?.value.trim().toUpperCase()!=='CLEAR') { toast('Type CLEAR to confirm'); return; }
     data.students=[];data.logs=[];data.tests=[];data.scores=[];
     persist();closeModal();showView('home');toast('Student records cleared from this browser');
+  }
+  function openImportDialog(kind) {
+    pendingImport=null;
+    const roster=kind==='roster';
+    const instructions=roster
+      ? 'Upload a CSV roster. Class names can create or use class periods. Separate accommodations with semicolons.'
+      : 'Upload one row per test or TEKS. Student names must match your roster. Repeat the overall score, test name, and date on each TEKS row; leave TEKS columns blank for a test-only score.';
+    const title=roster?'Import student roster':'Import test results';
+    const content=modalHead(title,'Your CSV is read in this browser and is not sent to Supabase.')
+      + '<div class="import-instructions"><div><p>'+escapeHtml(instructions)+'</p><p class="import-howto">Download the template, open it in Excel or Google Sheets, add your rows, then save or download it as a CSV file.</p></div><button type="button" class="button secondary small" data-modal-action="download-import-template" data-kind="'+kind+'">↓ Download '+(roster?'roster':'test data')+' CSV template</button></div>'
+      + '<form id="importForm" data-kind="'+kind+'"><label class="file-picker">Choose a CSV file<input id="importFile" type="file" accept=".csv,text/csv"></label><div id="importPreview" class="import-preview"><p class="muted">Choose a CSV file to preview it before saving.</p></div><footer class="modal-footer"><button type="button" class="button secondary" data-close>Cancel</button><button id="saveImportButton" class="button primary" type="submit" disabled>Import '+(roster?'students':'test data')+'</button></footer></form>';
+    openModal(content,true);
+  }
+  function downloadImportTemplate(kind) {
+    const header=kind==='roster'
+      ? 'student_name,grade,class_name,support_area,accommodations,notes'
+      : 'student_name,test_name,test_date,overall_score,overall_possible,teks_code,teks_score,teks_possible,priority';
+    downloadText('edutrack-'+(kind==='roster'?'roster':'test-data')+'-template.csv',header+'\r\n','text/csv');
+  }
+  function parseCsv(text) {
+    const source=String(text||'').replace(/^\uFEFF/,'');const rows=[];let row=[],cell='',quoted=false;
+    for(let i=0;i<source.length;i++){
+      const ch=source[i];
+      if(ch==='"'){if(quoted&&source[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}
+      else if(ch===','&&!quoted){row.push(cell);cell='';}
+      else if((ch==='\n'||ch==='\r')&&!quoted){if(ch==='\r'&&source[i+1]==='\n')i++;row.push(cell);cell='';if(row.some(value=>String(value).trim()!==''))rows.push(row);row=[];}
+      else cell+=ch;
+    }
+    if(cell!==''||row.length){row.push(cell);if(row.some(value=>String(value).trim()!==''))rows.push(row);}
+    if(!rows.length)return{headers:[],records:[]};
+    const headers=rows[0].map(value=>String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''));
+    const records=rows.slice(1).map((values,index)=>({line:index+2,values:Object.fromEntries(headers.map((header,column)=>[header,String(values[column]??'').trim()]))}));
+    return{headers,records};
+  }
+  function importField(record, aliases) {
+    for(const alias of aliases){const key=alias.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');if(Object.hasOwn(record.values,key))return record.values[key];}
+    return '';
+  }
+  function importNameKey(value) { return String(value||'').trim().toLocaleLowerCase(); }
+  function importNumber(value) {
+    const clean=String(value??'').trim().replace(/,/g,'');if(!clean)return null;
+    const number=Number(clean);return Number.isFinite(number)?number:NaN;
+  }
+  function importDate(value) {
+    const text=String(value||'').trim();if(!text)return'';
+    const match=text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    const iso=match?match[3]+'-'+match[1].padStart(2,'0')+'-'+match[2].padStart(2,'0'):text;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))return'';
+    const [year,month,day]=iso.split('-').map(Number),date=new Date(year,month-1,day);
+    return date.getFullYear()!==year||date.getMonth()!==month-1||date.getDate()!==day?'':iso;
+  }
+  function buildRosterImport(parsed) {
+    if(!parsed.headers.some(header=>['student_name','student','name','full_name'].includes(header)))return{kind:'roster',items:[],errors:['Missing student_name column. Use the roster template headers.'],newClasses:[]};
+    const items=[],errors=[],seen=new Set(),newClasses=[];
+    for(const record of parsed.records){
+      const name=importField(record,['student_name','student','name','full_name']);
+      if(!name){errors.push('Row '+record.line+': student name is blank.');continue;}
+      const key=importNameKey(name);
+      if(seen.has(key)||data.students.some(student=>importNameKey(student.name)===key)){errors.push('Row '+record.line+': '+name+' already appears in the roster or this file. Remove the duplicate first.');continue;}
+      seen.add(key);
+      const className=importField(record,['class_name','class','class_period','period']);
+      if(className&&!data.classes.some(item=>importNameKey(item.name)===importNameKey(className))&&!newClasses.some(item=>importNameKey(item)===importNameKey(className)))newClasses.push(className);
+      const accommodations=importField(record,['accommodations','accommodation','supports']).split(/[;|]/).map(value=>value.trim()).filter(Boolean);
+      items.push({line:record.line,name,grade:importField(record,['grade','grade_level']),className,supportArea:importField(record,['support_area','support'])||'Learning',accommodations,notes:importField(record,['notes','plan_notes'])});
+    }
+    return{kind:'roster',items,errors,newClasses};
+  }
+  function buildTestImport(parsed) {
+    const studentHeaders=['student_name','student','name'],scoreHeaders=['overall_score','test_score','test_result','overall_test_score'];
+    if(!parsed.headers.some(header=>studentHeaders.includes(header))||!parsed.headers.some(header=>scoreHeaders.includes(header)))return{kind:'tests',items:[],groups:[],errors:['Missing student_name or overall_score column. Use the test data template headers.']};
+    const items=[],errors=[],groups=[],groupMap=new Map();
+    for(const record of parsed.records){
+      const name=importField(record,studentHeaders);
+      if(!name){errors.push('Row '+record.line+': student name is blank.');continue;}
+      const matches=data.students.filter(student=>importNameKey(student.name)===importNameKey(name));
+      if(matches.length!==1){errors.push('Row '+record.line+': '+name+(matches.length?' matches more than one student.':' was not found in your roster.'));continue;}
+      const assessment=importField(record,['test_name','assessment','test']);
+      const rawDate=importField(record,['test_date','date']),date=importDate(rawDate);
+      const earned=importNumber(importField(record,scoreHeaders));
+      const possible=importNumber(importField(record,['overall_possible','test_possible','points_possible_overall']));
+      if(earned===null||Number.isNaN(earned)||earned<0){errors.push('Row '+record.line+': enter a valid overall_score.');continue;}
+      if(rawDate&&!date){errors.push('Row '+record.line+': use a real date in YYYY-MM-DD or M/D/YYYY format.');continue;}
+      if(possible!==null&&(Number.isNaN(possible)||possible<=0||earned>possible)){errors.push('Row '+record.line+': overall_possible must be greater than zero and at least the overall score.');continue;}
+      const student=matches[0],groupKey=[student.id,assessment.toLowerCase(),date,earned,possible??''].join('|');
+      let group=groupMap.get(groupKey);
+      if(!group){group={studentId:student.id,studentName:student.name,assessment,date,earned,possible,teks:[]};groupMap.set(groupKey,group);groups.push(group);}
+      const code=importField(record,['teks_code','teks','standard']);
+      const teksEarned=importNumber(importField(record,['teks_score','teks_points','points_earned']));
+      const teksPossible=importNumber(importField(record,['teks_possible','teks_points_possible','points_possible']));
+      if(code){
+        if(teksEarned===null||Number.isNaN(teksEarned)||teksPossible===null||Number.isNaN(teksPossible)||teksPossible<=0||teksEarned<0||teksEarned>teksPossible){errors.push('Row '+record.line+': for TEKS '+code+', enter valid teks_score and teks_possible values.');continue;}
+        if(group.teks.some(item=>item.code.toLowerCase()===code.toLowerCase())){errors.push('Row '+record.line+': TEKS '+code+' appears twice for '+name+' on this test.');continue;}
+        const priority=['yes','true','1','y'].includes(importField(record,['priority','is_priority']).toLowerCase());
+        group.teks.push({code,earned:teksEarned,possible:teksPossible,priority});
+        items.push({line:record.line,label:name+' · '+(assessment||'Test')+' · '+code});
+      }else{
+        if(teksEarned!==null||teksPossible!==null)errors.push('Row '+record.line+': enter a TEKS code or clear the TEKS score fields.');
+        items.push({line:record.line,label:name+' · '+(assessment||'Test')+' · overall score'});
+      }
+    }
+    return{kind:'tests',items,groups,errors,newClasses:[]};
+  }
+  async function loadImportFile(file) {
+    if(!file)return;
+    const preview=$('importPreview');if(!preview)return;
+    preview.innerHTML='<p class="muted">Reading and checking your file…</p>';
+    try{
+      const parsed=parseCsv(await file.text());
+      if(!parsed.headers.length)throw new Error('The file is empty or is not a readable CSV.');
+      const kind=$('importForm').dataset.kind;
+      pendingImport=kind==='roster'?buildRosterImport(parsed):buildTestImport(parsed);
+      pendingImport.fileName=file.name;
+      renderImportPreview(pendingImport);
+    }catch(error){
+      pendingImport={kind:$('importForm').dataset.kind,items:[],groups:[],errors:[error.message||'Could not read this CSV file.'],newClasses:[],fileName:file.name};
+      renderImportPreview(pendingImport);
+    }
+  }
+  function renderImportPreview(result) {
+    const preview=$('importPreview');if(!preview)return;
+    const ready=result.items.length,problems=result.errors.length;
+    let html='<div class="import-file-name">'+escapeHtml(result.fileName||'CSV file')+'</div><div class="import-count">'+ready+' '+(result.kind==='roster'?'students':'rows')+' ready'+(problems?' · '+problems+' issue'+(problems===1?'':'s')+' to fix':'')+'</div>';
+    if(result.newClasses?.length)html+='<p class="import-count">New classes to create: '+result.newClasses.map(escapeHtml).join(', ')+'</p>';
+    if(ready)html+='<details><summary>Preview rows</summary><ul>'+result.items.slice(0,6).map(item=>'<li>Row '+item.line+': '+escapeHtml(item.label||item.name)+'</li>').join('')+'</ul></details>';
+    if(problems)html+='<div class="import-error"><b>Fix these rows, then choose the file again:</b><ul>'+result.errors.slice(0,8).map(error=>'<li>'+escapeHtml(error)+'</li>').join('')+'</ul>'+(problems>8?'<small>And '+(problems-8)+' more issue(s).</small>':'')+'</div>';
+    preview.innerHTML=html;
+    const button=$('saveImportButton');if(button)button.disabled=!ready||problems>0;
+  }
+  function saveImport() {
+    if(!pendingImport||pendingImport.errors.length||!pendingImport.items.length){toast('Choose a valid CSV file first');return;}
+    if(pendingImport.kind==='roster'){
+      const classMap=new Map(data.classes.map(item=>[importNameKey(item.name),item.id]));
+      for(const name of pendingImport.newClasses||[]){const id=uid();data.classes.push({id,name});classMap.set(importNameKey(name),id);}
+      for(const item of pendingImport.items)data.students.push({id:uid(),name:item.name,grade:item.grade,classId:classMap.get(importNameKey(item.className))||'',supportArea:item.supportArea,accommodations:item.accommodations,notes:item.notes,updatedAt:new Date().toISOString()});
+      const count=pendingImport.items.length;persist();closeModal();showView('students');toast(count+' '+(count===1?'student':'students')+' imported');return;
+    }
+    for(const group of pendingImport.groups){
+      let test=data.tests.find(item=>item.studentId===group.studentId&&String(item.assessment||'').toLowerCase()===group.assessment.toLowerCase()&&String(item.date||'')===group.date&&Number(item.earned)===group.earned&&(item.possible??null)===(group.possible??null));
+      const testId=test?.id||uid();
+      if(test)Object.assign(test,{earned:group.earned,possible:group.possible});
+      else{test={id:testId,studentId:group.studentId,assessment:group.assessment,date:group.date,earned:group.earned,possible:group.possible,createdAt:new Date().toISOString()};data.tests.push(test);}
+      for(const item of group.teks){
+        let standard=data.teks.find(entry=>entry.code.toLowerCase()===item.code.toLowerCase());
+        if(!standard){standard={id:uid(),code:item.code,description:'',priority:item.priority};data.teks.push(standard);}
+        else if(item.priority)standard.priority=true;
+        const existingScore=data.scores.find(score=>score.testId===testId&&String(score.teks||'').toLowerCase()===item.code.toLowerCase());
+        const saved={id:existingScore?.id||uid(),testId,studentId:group.studentId,assessment:group.assessment,date:group.date,teks:standard.code,earned:item.earned,possible:item.possible,priority:item.priority||standard.priority,createdAt:existingScore?.createdAt||new Date().toISOString()};
+        if(existingScore)Object.assign(existingScore,saved);else data.scores.push(saved);
+      }
+    }
+    const count=pendingImport.groups.length;persist();closeModal();showView('reports');toast(count+' '+(count===1?'test':'tests')+' imported');
   }
   async function restoreBackup(file) {
     if (!file) return;
