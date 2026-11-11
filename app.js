@@ -526,19 +526,25 @@
     pendingImport=null;
     const roster=kind==='roster';
     const instructions=roster
-      ? 'Upload a CSV roster. Class names can create or use class periods. Separate accommodations with semicolons.'
-      : 'Upload one row per test or TEKS. Student names must match your roster. Repeat the overall score, test name, and date on each TEKS row; leave TEKS columns blank for a test-only score.';
+      ? 'Only student_name is required. Grade, class_name, and accommodations are optional. A class name can create or use a class period; separate accommodations with semicolons.'
+      : 'Only student name and overall score are required. Test name, date, points possible, and TEKS scores are optional. Names must match your roster.';
     const title=roster?'Import student roster':'Import test results';
+    const templateButtons=roster
+      ? '<button type="button" class="button secondary small" data-modal-action="download-import-template" data-kind="roster">↓ Simple roster template</button>'
+      : '<button type="button" class="button secondary small" data-modal-action="download-import-template" data-kind="tests">↓ Simple score template</button><button type="button" class="button subtle small" data-modal-action="download-import-template" data-kind="tests-teks">TEKS breakdown template</button>';
     const content=modalHead(title,'Your CSV is read in this browser and is not sent to Supabase.')
-      + '<div class="import-instructions"><div><p>'+escapeHtml(instructions)+'</p><p class="import-howto">Download the template, open it in Excel or Google Sheets, add your rows, then save or download it as a CSV file.</p></div><button type="button" class="button secondary small" data-modal-action="download-import-template" data-kind="'+kind+'">↓ Download '+(roster?'roster':'test data')+' CSV template</button></div>'
+      + '<div class="import-instructions"><div><p>'+escapeHtml(instructions)+'</p><p class="import-howto">Use your existing spreadsheet: save or export it as CSV and upload it. Or download a template, fill it in, and save as CSV.</p></div><div class="import-template-actions">'+templateButtons+'</div></div>'
       + '<form id="importForm" data-kind="'+kind+'"><label class="file-picker">Choose a CSV file<input id="importFile" type="file" accept=".csv,text/csv"></label><div id="importPreview" class="import-preview"><p class="muted">Choose a CSV file to preview it before saving.</p></div><footer class="modal-footer"><button type="button" class="button secondary" data-close>Cancel</button><button id="saveImportButton" class="button primary" type="submit" disabled>Import '+(roster?'students':'test data')+'</button></footer></form>';
     openModal(content,true);
   }
   function downloadImportTemplate(kind) {
     const header=kind==='roster'
-      ? 'student_name,grade,class_name,support_area,eb,sped,504,accommodations,notes'
-      : 'student_name,test_name,test_date,overall_score,overall_possible,teks_code,teks_score,teks_possible,priority';
-    downloadText('edutrack-'+(kind==='roster'?'roster':'test-data')+'-template.csv',header+'\r\n','text/csv');
+      ? 'student_name,grade,class_name,accommodations'
+      : kind==='tests-teks'
+        ? 'student_name,overall_score,test_name,test_date,overall_possible,teks_code,teks_score,teks_possible,priority'
+        : 'student_name,overall_score';
+    const filename=kind==='roster'?'edutrack-roster-template.csv':kind==='tests-teks'?'edutrack-test-scores-with-teks-template.csv':'edutrack-test-scores-template.csv';
+    downloadText(filename,header+'\r\n','text/csv');
   }
   function parseCsv(text) {
     const source=String(text||'').replace(/^\uFEFF/,'');const rows=[];let row=[],cell='',quoted=false;
@@ -590,7 +596,7 @@
     return{kind:'roster',items,errors,newClasses};
   }
   function buildTestImport(parsed) {
-    const studentHeaders=['student_name','student','name'],scoreHeaders=['overall_score','test_score','test_result','overall_test_score'];
+    const studentHeaders=['student_name','student','name'],scoreHeaders=['overall_score','test_score','test_result','overall_test_score','score','points_earned'];
     if(!parsed.headers.some(header=>studentHeaders.includes(header))||!parsed.headers.some(header=>scoreHeaders.includes(header)))return{kind:'tests',items:[],groups:[],errors:['Missing student_name or overall_score column. Use the test data template headers.']};
     const items=[],errors=[],groups=[],groupMap=new Map();
     for(const record of parsed.records){
@@ -601,7 +607,7 @@
       const assessment=importField(record,['test_name','assessment','test']);
       const rawDate=importField(record,['test_date','date']),date=importDate(rawDate);
       const earned=importNumber(importField(record,scoreHeaders));
-      const possible=importNumber(importField(record,['overall_possible','test_possible','points_possible_overall']));
+      const possible=importNumber(importField(record,['overall_possible','test_possible','points_possible_overall','points_possible','possible','max_score']));
       if(earned===null||Number.isNaN(earned)||earned<0){errors.push('Row '+record.line+': enter a valid overall_score.');continue;}
       if(rawDate&&!date){errors.push('Row '+record.line+': use a real date in YYYY-MM-DD or M/D/YYYY format.');continue;}
       if(possible!==null&&(Number.isNaN(possible)||possible<=0||earned>possible)){errors.push('Row '+record.line+': overall_possible must be greater than zero and at least the overall score.');continue;}
